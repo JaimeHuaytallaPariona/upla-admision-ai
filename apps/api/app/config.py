@@ -1,4 +1,4 @@
-"""Configuración centralizada del backend. Todas las variables se leen de entorno."""
+"""Configuraci??n centralizada del backend. Todas las variables se leen de entorno."""
 from functools import lru_cache
 from typing import Literal
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -8,7 +8,7 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
     # App
-    app_name: str = "UPLA Admisión AI"
+    app_name: str = "UPLA Admisi??n AI"
     app_env: Literal["dev", "staging", "prod"] = "dev"
     api_prefix: str = "/api/v1"
     cors_origins: list[str] = ["http://localhost:3000", "http://web:3000"]
@@ -24,8 +24,8 @@ class Settings(BaseSettings):
     ollama_model: str = "llama3.1:8b"
 
     # Embeddings (local por defecto, cero dependencia externa)
-    embedding_model: str = "BAAI/bge-m3"
-    embedding_dim: int = 1024
+    embedding_model: str = "BAAI/bge-small-en-v1.5"
+    embedding_dim: int = 384
 
     # RAG
     rag_top_k: int = 5
@@ -43,3 +43,4 @@ class Settings(BaseSettings):
 @lru_cache
 def get_settings() -> Settings:
     return Settings()
+

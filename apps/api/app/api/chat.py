@@ -15,27 +15,32 @@ log = logging.getLogger(__name__)
 
 @router.post("", response_model=ChatResponse)
 def post_message(req: ChatRequest, db: Session = Depends(get_db)):
-    # Resolver sesión
+    try:
+        db.rollback()
+    except Exception:
+        pass
+
+    # --- Fase 1: persistir sesion y mensaje del usuario ---
     if req.session_id:
         session = db.get(SessionModel, req.session_id)
         if not session:
-            raise HTTPException(status_code=404, detail="Sesión no encontrada")
+            raise HTTPException(status_code=404, detail="Sesion no encontrada")
     else:
         session = SessionModel(channel=req.channel)
         db.add(session)
         db.flush()
 
-    # Si el request trae DNI, promover identidad
     if req.dni:
         session.dni = req.dni
         session.identity_level = "authenticated"
 
-    # Persistir mensaje entrante
     user_msg = Message(session_id=session.id, role="user", content=req.message)
     db.add(user_msg)
-    db.flush()
+    db.commit()  # Persiste sesion + mensaje del usuario
 
-    # Historia reciente para contexto del LLM
+    session_id = session.id
+    session = db.get(SessionModel, session_id)  # re-fetch
+
     recent = (
         db.query(Message)
         .filter(Message.session_id == session.id)
@@ -45,7 +50,7 @@ def post_message(req: ChatRequest, db: Session = Depends(get_db)):
     )
     history = [{"role": m.role, "content": m.content} for m in recent[:-1]]
 
-    # Invocar orquestador
+    # --- Fase 2: orquestar y procesar ---
     state = dict(session.state or {})
     orch = Orchestrator(db)
     try:
@@ -58,34 +63,45 @@ def post_message(req: ChatRequest, db: Session = Depends(get_db)):
         )
     except Exception as e:
         log.exception("Fallo del orquestador")
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        session = db.get(SessionModel, session_id) or session
         result = {
-            "reply": f"Lo siento, tengo un problema técnico. Puedes intentar nuevamente o contactar al 964 123 456.",
+            "reply": "Lo siento, tengo un problema tecnico. Puedes intentar nuevamente o contactar al 964 123 456.",
             "citations": [],
             "agent": "error",
             "confidence": 0.0,
             "requires_handoff": True,
-            "phase": session.current_phase,
+            "phase": session.current_phase if session else "atencion",
             "intent": None,
         }
 
-    # Actualizar estado y fase
     if "state_update" in result:
         state.update(result["state_update"])
-    session.state = state
-    session.current_phase = result.get("phase", session.current_phase)
-    session.current_intent = result.get("intent", session.current_intent)
 
-    # Persistir respuesta
-    assistant_msg = Message(
-        session_id=session.id,
-        role="assistant",
-        content=result["reply"],
-        agent=result.get("agent"),
-        citations=result.get("citations"),
-        confidence=result.get("confidence"),
-    )
-    db.add(assistant_msg)
-    db.commit()
+    # --- Fase 3: persistir respuesta del asistente ---
+    try:
+        session.state = state
+        session.current_phase = result.get("phase", session.current_phase)
+        session.current_intent = result.get("intent", session.current_intent)
+        assistant_msg = Message(
+            session_id=session.id,
+            role="assistant",
+            content=result["reply"],
+            agent=result.get("agent"),
+            citations=result.get("citations"),
+            confidence=result.get("confidence"),
+        )
+        db.add(assistant_msg)
+        db.commit()
+    except Exception:
+        log.exception("Fallo al persistir respuesta del asistente")
+        try:
+            db.rollback()
+        except Exception:
+            pass
 
     return ChatResponse(
         session_id=session.id,

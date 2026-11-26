@@ -1,7 +1,8 @@
-"""Ingesta de chunks al índice pgvector (invocado al arrancar si está vacío)."""
+"""Ingesta de chunks al indice pgvector (invocado al arrancar si esta vacio)."""
 import hashlib
 import json
 import logging
+import os
 from pathlib import Path
 
 from sqlalchemy import text as sql_text
@@ -11,31 +12,106 @@ from app.rag.embedder import embed_batch
 
 log = logging.getLogger(__name__)
 
-# El pipeline canónico vive en apps/rag-kb/scripts/ingest.py.
-# Este módulo lo consume en forma de librería al arrancar.
 
-import os
-_env_kb = os.getenv("KB_DATA_DIR")
-if _env_kb:
-    KB_DATA_DIR = Path(_env_kb)
-else:
-    # Local (fuera de docker): sube hasta la raíz del repo y entra a apps/rag-kb/data
+def _resolve_kb_dir() -> Path:
+    env = os.getenv("KB_DATA_DIR")
+    if env:
+        return Path(env)
     _here = Path(__file__).resolve()
-    _candidates = [
-        Path("/rag-kb/data"),  # montaje en docker
-        _here.parents[3] / "rag-kb" / "data",  # /app/rag-kb (si el volumen se monta ahí)
-        _here.parents[4] / "apps" / "rag-kb" / "data",  # repo root/apps/rag-kb/data
-        _here.parents[5] / "apps" / "rag-kb" / "data",
-    ]
-    KB_DATA_DIR = next((c for c in _candidates if c.exists()), _candidates[0])
+    candidates = [Path("/rag-kb/data")]
+    for n in (3, 4, 5):
+        try:
+            candidates.append(_here.parents[n] / "rag-kb" / "data")
+            candidates.append(_here.parents[n] / "apps" / "rag-kb" / "data")
+        except IndexError:
+            continue
+    for c in candidates:
+        if c.exists():
+            return c
+    return Path("/rag-kb/data")
+
+
+KB_DATA_DIR = _resolve_kb_dir()
+
+
+def _to_chunk(raw: dict) -> dict | None:
+    """Normaliza un registro JSONL a un chunk indexable (con id, text, citation)."""
+    if "id" in raw and "text" in raw:
+        return raw
+
+    if "modalidad_id" in raw:
+        mid = str(raw["modalidad_id"])
+        parts = [f"Modalidad: {raw.get('nombre', mid)}."]
+        if raw.get("articulo_fuente"):
+            parts.append(f"Fuente normativa: {raw['articulo_fuente']}.")
+        if raw.get("aplica_a"):
+            parts.append(f"Aplica a: {raw['aplica_a']}.")
+        if raw.get("requisitos_base"):
+            parts.append(f"Requisitos base: {'; '.join(str(x) for x in raw['requisitos_base'])}.")
+        if raw.get("requisitos_especificos"):
+            parts.append(f"Requisitos especificos: {'; '.join(str(x) for x in raw['requisitos_especificos'])}.")
+        if raw.get("excepciones_programa"):
+            parts.append(f"Excepciones por programa: {raw['excepciones_programa']}.")
+        if raw.get("ingreso_directo") is not None:
+            parts.append(f"Ingreso directo: {'si' if raw['ingreso_directo'] else 'no'}.")
+        if raw.get("beneficios_economicos"):
+            parts.append(f"Beneficios economicos: {raw['beneficios_economicos']}.")
+        if raw.get("notas"):
+            parts.append(f"Notas: {raw['notas']}.")
+        text = " ".join(parts)
+        return {
+            "id": f"MOD-{mid.upper()}",
+            "text": text,
+            "citation": f"Catalogo oficial de modalidades UPLA - {raw.get('nombre', mid)}",
+            "source": "Catalogo de modalidades UPLA",
+            "source_type": "catalogo_modalidad",
+            "topic": "modalidad",
+            "modalidades_aplicables": [mid],
+            "canales_aplicables": ["todos"],
+            "sensitivity": "public",
+            "version": "1.0",
+        }
+
+    if "canal_id" in raw:
+        cid = str(raw["canal_id"])
+        parts = [f"Canal {cid}."]
+        if raw.get("carreras"):
+            parts.append(f"Carreras del canal: {', '.join(str(x) for x in raw['carreras'])}.")
+        if raw.get("asignaturas"):
+            asigs = []
+            for a in raw["asignaturas"]:
+                if isinstance(a, dict):
+                    asigs.append(f"{a.get('nombre','?')} (ponderacion {a.get('ponderacion','?')})")
+                else:
+                    asigs.append(str(a))
+            parts.append(f"Composicion del examen: {', '.join(asigs)}.")
+        if raw.get("duracion_examen"):
+            parts.append(f"Duracion del examen: {raw['duracion_examen']}.")
+        if raw.get("articulo_fuente"):
+            parts.append(f"Fuente normativa: {raw['articulo_fuente']}.")
+        text = " ".join(parts)
+        return {
+            "id": f"CAN-{cid.upper()}",
+            "text": text,
+            "citation": f"Catalogo oficial de canales UPLA - Canal {cid}",
+            "source": "Catalogo de canales UPLA",
+            "source_type": "catalogo_canal",
+            "topic": "canal_examen",
+            "modalidades_aplicables": ["todas"],
+            "canales_aplicables": [cid],
+            "sensitivity": "public",
+            "version": "1.0",
+        }
+
+    return None
 
 
 def _normalize_for_embedding(chunk: dict) -> str:
     parts = []
     if chunk.get("chapter"):
-        parts.append(f"[Capítulo: {chunk['chapter']}]")
+        parts.append(f"[Capitulo: {chunk['chapter']}]")
     if chunk.get("article"):
-        parts.append(f"[Artículo: {chunk['article']}]")
+        parts.append(f"[Articulo: {chunk['article']}]")
     if chunk.get("topic"):
         parts.append(f"[Tema: {chunk['topic']}]")
     parts.append(chunk.get("text", ""))
@@ -61,14 +137,13 @@ def count_chunks(db: Session) -> int:
 
 
 def bootstrap_index_if_empty(db: Session) -> int:
-    """Si el índice está vacío, lo llena con los JSONL de rag-kb/data. Retorna chunks indexados."""
     existing = count_chunks(db)
     if existing > 0:
-        log.info(f"Índice ya contiene {existing} chunks; se omite bootstrap.")
+        log.info(f"Indice ya contiene {existing} chunks; se omite bootstrap.")
         return 0
 
     files = sorted(KB_DATA_DIR.glob("*.jsonl"))
-    files = [f for f in files if f.name != "golden_eval.jsonl"]  # golden no va al índice
+    files = [f for f in files if f.name != "golden_eval.jsonl"]
     if not files:
         log.warning(f"No se encontraron JSONL en {KB_DATA_DIR}")
         return 0
@@ -76,20 +151,22 @@ def bootstrap_index_if_empty(db: Session) -> int:
     chunks: list[dict] = []
     for f in files:
         count = 0
-        for c in _iter_jsonl(f):
-            chunks.append(c)
-            count += 1
+        for raw in _iter_jsonl(f):
+            chunk = _to_chunk(raw)
+            if chunk:
+                chunks.append(chunk)
+                count += 1
         log.info(f"  {f.name}: {count} chunks cargados")
 
-    log.info(f"Generando embeddings para {len(chunks)} chunks…")
+    log.info(f"Generando embeddings para {len(chunks)} chunks...")
     texts = [_normalize_for_embedding(c) for c in chunks]
     embs = embed_batch(texts)
 
     for c, e in zip(chunks, embs):
         db.execute(
             sql_text("""
-                INSERT INTO kb_chunks (id, text, embedding, metadata, content_hash)
-                VALUES (:id, :text, CAST(:emb AS vector), CAST(:meta AS jsonb), :hash)
+                INSERT INTO kb_chunks (id, text, embedding, metadata, content_hash, indexed_at)
+                VALUES (:id, :text, CAST(:emb AS vector), CAST(:meta AS jsonb), :hash, NOW())
                 ON CONFLICT (id) DO NOTHING;
             """),
             {
@@ -103,7 +180,6 @@ def bootstrap_index_if_empty(db: Session) -> int:
     db.commit()
     log.info(f"Bootstrap completado: {len(chunks)} chunks indexados.")
 
-    # Índice HNSW para producción; ivfflat necesita datos primero
     try:
         db.execute(sql_text(
             "CREATE INDEX IF NOT EXISTS idx_kb_chunks_embedding "
@@ -111,6 +187,7 @@ def bootstrap_index_if_empty(db: Session) -> int:
         ))
         db.commit()
     except Exception as e:
-        log.warning(f"No se pudo crear índice HNSW: {e}")
+        log.warning(f"No se pudo crear indice HNSW: {e}")
 
     return len(chunks)
+

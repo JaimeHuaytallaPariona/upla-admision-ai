@@ -1,4 +1,4 @@
-"""Recuperación híbrida (semántica + filtros categóricos) contra pgvector."""
+"""Recuperacion hibrida (semantica + filtros categoricos) contra pgvector."""
 import logging
 from typing import Any
 
@@ -25,14 +25,9 @@ class Retriever:
         canal: str | None = None,
         sensitivity_max: str = "public",
     ) -> list[dict[str, Any]]:
-        """
-        Devuelve los top-k chunks más relevantes.
-        sensitivity_max: nivel máximo permitido (public < authenticated_only < internal_only).
-        """
         top_k = top_k or self.settings.rag_top_k
         q_vec = embed(query)
 
-        # Niveles de sensibilidad permitidos
         if sensitivity_max == "public":
             allowed = ["public"]
         elif sensitivity_max == "authenticated_only":
@@ -40,22 +35,22 @@ class Retriever:
         else:
             allowed = ["public", "authenticated_only", "internal_only"]
 
-        where = ["(metadata->>'sensitivity') IN :allowed"]
+        where = ["((metadata::jsonb)->>'sensitivity') IN :allowed"]
         params: dict[str, Any] = {"q": str(q_vec), "allowed": tuple(allowed), "k": top_k}
 
         if topic:
-            where.append("(metadata->>'topic') = :topic")
+            where.append("((metadata::jsonb)->>'topic') = :topic")
             params["topic"] = topic
         if modalidad:
             where.append(
-                "(metadata->'modalidades_aplicables' ? :modalidad OR "
-                "metadata->'modalidades_aplicables' ? 'todas')"
+                "((metadata::jsonb)->'modalidades_aplicables' ? :modalidad OR "
+                "(metadata::jsonb)->'modalidades_aplicables' ? 'todas')"
             )
             params["modalidad"] = modalidad
         if canal:
             where.append(
-                "(metadata->'canales_aplicables' ? :canal OR "
-                "metadata->'canales_aplicables' ? 'todos')"
+                "((metadata::jsonb)->'canales_aplicables' ? :canal OR "
+                "(metadata::jsonb)->'canales_aplicables' ? 'todos')"
             )
             params["canal"] = canal
 
@@ -84,11 +79,10 @@ class Retriever:
 
 
 def format_context(chunks: list[dict[str, Any]]) -> str:
-    """Formatea los chunks como contexto para el LLM."""
     if not chunks:
         return "(sin fuentes recuperadas)"
     parts = []
     for i, c in enumerate(chunks, 1):
         cit = c.get("citation", "sin cita")
-        parts.append(f"[Fuente {i}] {c['text']}\n→ Citar como: {cit}")
+        parts.append(f"[Fuente {i}] {c['text']}\n-> Citar como: {cit}")
     return "\n\n".join(parts)

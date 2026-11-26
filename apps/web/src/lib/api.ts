@@ -1,6 +1,6 @@
 import type { ChatResponse, PanelMetrics } from "./types";
 
-const API_BASE = "/api";
+const API_BASE = "http://localhost:8000/api/v1";
 
 async function handle<T>(r: Response): Promise<T> {
   if (!r.ok) {

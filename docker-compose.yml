@@ -33,7 +33,7 @@ services:
       CLAUDE_MODEL: ${CLAUDE_MODEL:-claude-haiku-4-5}
       OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://ollama:11434}
       OLLAMA_MODEL: ${OLLAMA_MODEL:-llama3.1:8b}
-      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-BAAI/bge-m3}
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-BAAI/bge-small-en-v1.5}
       CORS_ORIGINS: '["http://localhost:3000","http://web:3000"]'
     depends_on:
       postgres:
@@ -41,6 +41,9 @@ services:
     volumes:
       - ./apps/rag-kb:/rag-kb:ro
       - hfcache:/root/.cache/huggingface
+      - fastembed_cache:/root/.cache/fastembed
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     ports:
       - "8000:8000"
 
@@ -60,3 +63,4 @@ services:
 volumes:
   pgdata:
   hfcache:
+  fastembed_cache:

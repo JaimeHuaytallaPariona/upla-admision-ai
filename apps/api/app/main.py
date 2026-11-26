@@ -27,9 +27,16 @@ async def lifespan(app: FastAPI):
     try:
         bootstrap_index_if_empty(db)
     except Exception as e:
-        log.warning(f"Bootstrap del índice falló (se puede ejecutar después): {e}")
+        log.warning(f"Bootstrap del indice fallo (se puede ejecutar despues): {e}")
     finally:
         db.close()
+    # Pre-cargar el embedder para que la primera consulta no pague el costo
+    try:
+        from app.rag.embedder import embed
+        _ = embed("warmup")
+        log.info("Embedder precargado y listo para servir.")
+    except Exception as e:
+        log.warning(f"Pre-carga del embedder fallo: {e}")
     yield
     log.info("Apagando backend.")
 
@@ -37,7 +44,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title=settings.app_name,
     version=__version__,
-    description="Backend conversacional multiagente para el proceso de admisión UPLA.",
+    description="Backend conversacional multiagente para el proceso de admision UPLA.",
     lifespan=lifespan,
 )
 
