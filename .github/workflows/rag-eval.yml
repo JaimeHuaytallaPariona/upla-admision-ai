@@ -66,6 +66,9 @@ jobs:
                   if not line.strip():
                       continue
                   c = json.loads(line)
+                  # Catalogos (canales/modalidades) se transforman a chunks en ingesta
+                  if "id" not in c or "text" not in c:
+                      continue
                   total += 1
                   errs = list(validator.iter_errors(c))
                   if errs:
