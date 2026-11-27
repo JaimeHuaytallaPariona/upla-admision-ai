@@ -42,14 +42,13 @@ async def receive_message(request: Request, db: Session = Depends(get_db)):
         if "messages" not in value:
             return {"status": "ignored", "reason": "no messages"}
         msg = value["messages"][0]
-        from_phone = msg["from"]
+        msg["from"]
         text = msg.get("text", {}).get("body", "")
     except (KeyError, IndexError) as e:
         log.warning(f"Payload de WhatsApp no reconocido: {e}")
         return {"status": "ignored", "reason": "invalid payload"}
 
     # Mapear teléfono → session (stub simple: una sesión por teléfono)
-    session_id = f"whatsapp-{from_phone}"
     req = ChatRequest(session_id=None, channel="whatsapp", message=text)
     # TODO: lookup real por teléfono y enviar respuesta vía Graph API
     response = post_message(req, db=db)

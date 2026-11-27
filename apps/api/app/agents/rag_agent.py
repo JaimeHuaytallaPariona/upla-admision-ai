@@ -1,6 +1,5 @@
 """Agente RAG: responde consultas informativas citando el Reglamento."""
 import re
-from typing import Any
 
 from sqlalchemy.orm import Session
 

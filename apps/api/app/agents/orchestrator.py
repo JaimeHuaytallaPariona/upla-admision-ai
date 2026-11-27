@@ -1,6 +1,5 @@
 """Orquestador multiagente. Máquina de estados simple con routing por intención."""
 import logging
-from typing import Any
 
 from sqlalchemy.orm import Session
 

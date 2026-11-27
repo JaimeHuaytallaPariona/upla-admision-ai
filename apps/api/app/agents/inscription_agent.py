@@ -1,11 +1,9 @@
 """Agente de inscripcion: conduce la captura de datos paso a paso."""
 import re
 import uuid
-from typing import Any
 
 from sqlalchemy.orm import Session
 
-from app.agents.prompts import SYSTEM_INSCRIPCION
 from app.llm import get_llm
 from app.models.db_models import Inscripcion
 from app.mock.catalogo_carreras import CARRERAS_BY_CANAL, canal_de_carrera

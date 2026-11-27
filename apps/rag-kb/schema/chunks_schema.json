@@ -2,9 +2,17 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "upla-admision-rag/chunks_schema.json",
   "title": "Chunk schema – Base de conocimiento RAG UPLA Admisión",
-  "description": "Esquema del registro individual del índice vectorial. Cada chunk es una unidad autocontenida de conocimiento recuperable, con metadata que permite filtrado, citación y auditoría.",
+  "description": "Esquema del registro individual del índice vectorial. Cada chunk es una unidad autocontenida de conocimiento recuperable, con metadata que permite filtrado, citación y auditoría. v0.2 añade cobertura del Sistema de Gestión de la Calidad (SGC-FC-PADM, SGC-IND-PADM, SGC-GDR-PADM-01) de la Oficina de Admisión UPLA.",
   "type": "object",
-  "required": ["id", "text", "source", "source_type", "citation", "version", "last_updated"],
+  "required": [
+    "id",
+    "text",
+    "source",
+    "source_type",
+    "citation",
+    "version",
+    "last_updated"
+  ],
   "properties": {
     "id": {
       "type": "string",
@@ -22,7 +30,19 @@
     },
     "source_type": {
       "type": "string",
-      "enum": ["reglamento", "ficha_sgc", "catalogo_modalidad", "catalogo_canal", "prospecto", "calendario", "tarifario", "faq"],
+      "enum": [
+        "reglamento",
+        "ficha_sgc",
+        "catalogo_modalidad",
+        "catalogo_canal",
+        "prospecto",
+        "calendario",
+        "tarifario",
+        "faq",
+        "ficha_proceso",
+        "indicador_sgc",
+        "riesgo_amfe"
+      ],
       "description": "Taxonomía de la fuente. Permite filtrar por tipo en la recuperación."
     },
     "source_code": {
@@ -30,26 +50,54 @@
       "description": "Código oficial de la fuente. Ejemplo: 311-2025-CU-UPLA, SGC-FC-PADM-M01-02."
     },
     "chapter": {
-      "type": ["string", "null"],
+      "type": [
+        "string",
+        "null"
+      ],
       "description": "Título o capítulo al que pertenece el chunk."
     },
     "article": {
-      "type": ["string", "null"],
+      "type": [
+        "string",
+        "null"
+      ],
       "description": "Artículo del reglamento o sección de la ficha. Ejemplo: Art. 7°, Objetivo, Riesgos."
     },
     "topic": {
       "type": "string",
       "enum": [
-        "inscripcion", "pago", "requisitos_documentales", "modalidad",
-        "canal_examen", "examen_contenido", "examen_virtual", "examen_presencial",
-        "resultados", "ingreso", "matricula", "sanciones", "proteccion_datos",
-        "vacantes", "convocatoria", "convalidacion", "definicion", "proceso_interno"
+        "inscripcion",
+        "pago",
+        "requisitos_documentales",
+        "modalidad",
+        "canal_examen",
+        "examen_contenido",
+        "examen_virtual",
+        "examen_presencial",
+        "resultados",
+        "ingreso",
+        "matricula",
+        "sanciones",
+        "proteccion_datos",
+        "vacantes",
+        "convocatoria",
+        "convalidacion",
+        "definicion",
+        "proceso_interno",
+        "proceso_sgc",
+        "indicador",
+        "riesgo",
+        "responsable",
+        "actividad",
+        "sgc_general"
       ],
       "description": "Tema principal del chunk. Permite filtrado temático en la recuperación."
     },
     "subtopics": {
       "type": "array",
-      "items": { "type": "string" },
+      "items": {
+        "type": "string"
+      },
       "description": "Subtemas específicos mencionados en el chunk."
     },
     "modalidades_aplicables": {
@@ -57,9 +105,19 @@
       "items": {
         "type": "string",
         "enum": [
-          "todas", "regular", "segunda_carrera", "traslado_externo", "traslado_interno",
-          "primeros_puestos", "deportistas", "discapacidad", "egresados_institutos",
-          "mayores_30", "primera_seleccion", "oficiales_ffaa_ffpp", "suboficiales_ffaa_ffpp",
+          "todas",
+          "regular",
+          "segunda_carrera",
+          "traslado_externo",
+          "traslado_interno",
+          "primeros_puestos",
+          "deportistas",
+          "discapacidad",
+          "egresados_institutos",
+          "mayores_30",
+          "primera_seleccion",
+          "oficiales_ffaa_ffpp",
+          "suboficiales_ffaa_ffpp",
           "beca_oportunidad"
         ]
       },
@@ -69,13 +127,22 @@
       "type": "array",
       "items": {
         "type": "string",
-        "enum": ["todos", "I", "II", "III", "IV", "V"]
+        "enum": [
+          "todos",
+          "I",
+          "II",
+          "III",
+          "IV",
+          "V"
+        ]
       },
       "description": "Canales de carreras a los que aplica el chunk. 'todos' = transversal."
     },
     "entities_mentioned": {
       "type": "array",
-      "items": { "type": "string" },
+      "items": {
+        "type": "string"
+      },
       "description": "Entidades externas referidas: URLs, códigos de resolución, instituciones (SUNEDU, MINEDU, IPD, PRONABEC, CONADIS)."
     },
     "citation": {
@@ -83,12 +150,19 @@
       "description": "Texto de citación que el asistente muestra al postulante. Formato APA institucional."
     },
     "page_in_source": {
-      "type": ["integer", "null"],
+      "type": [
+        "integer",
+        "null"
+      ],
       "description": "Página en el documento original."
     },
     "sensitivity": {
       "type": "string",
-      "enum": ["public", "authenticated_only", "internal_only"],
+      "enum": [
+        "public",
+        "authenticated_only",
+        "internal_only"
+      ],
       "description": "Nivel de sensibilidad. 'public' se devuelve en modo anónimo; 'authenticated_only' requiere SSO; 'internal_only' solo accesible por personal."
     },
     "version": {
@@ -96,7 +170,10 @@
       "description": "Versión del chunk. Formato semver: MAJOR.MINOR.PATCH."
     },
     "effective_date": {
-      "type": ["string", "null"],
+      "type": [
+        "string",
+        "null"
+      ],
       "format": "date",
       "description": "Fecha a partir de la cual el contenido del chunk entra en vigencia."
     },
