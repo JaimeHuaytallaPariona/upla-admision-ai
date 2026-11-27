@@ -1,6 +1,5 @@
 """Endpoint de salud y metadata del servicio."""
 from fastapi import APIRouter, Depends
-from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from app import __version__

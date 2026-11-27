@@ -61,7 +61,7 @@ def post_message(req: ChatRequest, db: Session = Depends(get_db)):
             session_id=session.id,
             identity_level=session.identity_level,
         )
-    except Exception as e:
+    except Exception:
         log.exception("Fallo del orquestador")
         try:
             db.rollback()

@@ -1,6 +1,6 @@
 """Endpoints del panel de administración / monitoreo del asistente."""
 from collections import Counter
-from datetime import datetime, timedelta
+from datetime import datetime
 
 from fastapi import APIRouter, Depends
 from sqlalchemy import func

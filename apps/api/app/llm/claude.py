@@ -1,7 +1,6 @@
 """Proveedor Claude (Anthropic API)."""
 import json
 import logging
-from typing import Any
 
 from anthropic import Anthropic
 

@@ -1,6 +1,5 @@
 """Router de intencion + reglas heuristicas de pre-filtro."""
 import re
-from typing import Any
 
 from app.agents.prompts import INTENT_LIST
 from app.llm import get_llm
